@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Football Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 2.5rem;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        select, input[type="file"], button {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        select:focus, input[type="file"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        tbody tr:hover {
+            background: #f8f9ff;
+        }
+
+        .win-pct {
+            font-weight: bold;
+        }
+
+        .win-pct.high { color: #28a745; }
+        .win-pct.medium { color: #ffc107; }
+        .win-pct.low { color: #dc3545; }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.2rem;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 5px solid #dc3545;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 5px solid #28a745;
+        }
+
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            table {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏈 Fantasy Football Dashboard</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="yearSelect">Year:</label>
+                <select id="yearSelect">
+                    <option value="all">All Years (2019-2024)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="coachSelect">Coach:</label>
+                <select id="coachSelect">
+                    <option value="all">All Coaches</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="fileUpload">Upload New Data:</label>
+                <input type="file" id="fileUpload" accept=".xlsx,.xls" />
+            </div>
+            
+            <button onclick="uploadFile()">Upload Data</button>
+            <button onclick="refreshDashboard()">Refresh</button>
+        </div>
+
+        <div id="messages"></div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h2>📊 Overall Standings</h2>
+                <div id="standingsTable" class="loading">Loading standings...</div>
+            </div>
+
+            <div class="card">
+                <h2>📈 Yearly Performance</h2>
+                <div id="yearlyChart" class="loading">Loading yearly data...</div>
+            </div>
+
+            <div class="card">
+                <h2>⚔️ Head-to-Head Records</h2>
+                <div id="headToHeadTable" class="loading">Loading head-to-head data...</div>
+            </div>
+
+            <div class="card">
+                <h2>📅 Weekly Performance</h2>
+                <div id="weeklyChart" class="loading">Loading weekly data...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script>
+        let standingsChart, weeklyChart;
+
+        async function loadInitialData() {
+            try {
+                // Load years and coaches for dropdowns
+                const years = await fetch('/api/years').then(r => r.json());
+                const coaches = await fetch('/api/coaches').then(r => r.json());
+                
+                const yearSelect = document.getElementById('yearSelect');
+                years.forEach(year => {
+                    const option = document.createElement('option');
+                    option.value = year;
+                    option.textContent = year;
+                    yearSelect.appendChild(option);
+                });
+                
+                const coachSelect = document.getElementById('coachSelect');
+                coaches.forEach(coach => {
+                    const option = document.createElement('option');
+                    option.value = coach;
+                    option.textContent = coach;
+                    coachSelect.appendChild(option);
+                });
+                
+                // Load dashboard data
+                await refreshDashboard();
+                
+            } catch (error) {
+                showMessage('Error loading initial data: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshDashboard() {
+            const year = document.getElementById('yearSelect').value;
+            const coach = document.getElementById('coachSelect').value;
+            
+            await Promise.all([
+                loadStandings(year),
+                loadHeadToHead(),
+                loadYearlyData(),
+                loadWeeklyData(coach, year)
+            ]);
+        }
+
+        async function loadStandings(year = 'all') {
+            try {
+                const response = await fetch(`/api/standings?year=${year}`);
+                const standings = await response.json();
+                
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Coach</th>
+                                <th>Record</th>
+                                <th>Win %</th>
+                                <th>Points For</th>
+                                <th>Points Against</th>
+                                <th>Avg PF</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                standings.forEach(team => {
+                    const winPctClass = team.win_pct >= 0.600 ? 'high' : 
+                                       team.win_pct >= 0.400 ? 'medium' : 'low';
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${team.coach}</strong></td>
+                            <td>${team.wins}-${team.losses}${team.ties > 0 ? `-${team.ties}` : ''}</td>
+                            <td class="win-pct ${winPctClass}">${(team.win_pct * 100).toFixed(1)}%</td>
+                            <td>${team.points_for}</td>
+                            <td>${team.points_against}</td>
+                            <td>${team.avg_points_for}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                document.getElementById('standingsTable').innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('standingsTable').innerHTML = 
+                    `<div class="error">Error loading standings: ${error.message}</div>`;
+            }
+        }
+
+        async function loadHeadToHead() {
+            try {
+                const response = await fetch('/api/head-to-head');
+                const data = await response.json();
+                
+                // Group by coach
+                const grouped = {};
+                data.forEach(record => {
+                    if (!grouped[record.coach]) {
+                        grouped[record.coach] = [];
+                    }
+                    grouped[record.coach].push(record);
+                });
+                
+                let html = '<div style="max-height: 400px; overflow-y: auto;">';
+                
+                Object.keys(grouped).sort().forEach(coach => {
+                    html += `<h4 style="margin: 15px 0 10px 0; color: #667eea;">${coach}</h4>`;
+                    html += '<table style="font-size: 0.9rem; margin-bottom: 15px;">';
+                    html += '<thead><tr><th>vs</th><th>Record</th><th>Win %</th><th>PF</th><th>PA</th></tr></thead><tbody>';
+                    
+                    grouped[coach].forEach(record => {
+                        const winPctClass = record.win_pct >= 0.600 ? 'high' : 
+                                           record.win_pct >= 0.400 ? 'medium' : 'low';
+                        
+                        html += `
+                            <tr>
+                                <td>${record.opp_coach}</td>
+                                <td>${record.wins}-${record.losses}</td>
+                                <td class="win-pct ${winPctClass}">${(record.win_pct * 100).toFixed(0)}%</td>
+                                <td>${record.points_for}</td>
+                                <td>${record.points_against}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                });
+                
+                html += '</div>';
+                document.getElementById('headToHeadTable').innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('headToHeadTable').innerHTML = 
+                    `<div class="error">Error loading head-to-head data: ${error.message}</div>`;
+            }
+        }
+
+        async function loadYearlyData() {
+            try {
+                const response = await fetch('/api/yearly-summary');
+                const data = await response.json();
+                
+                // Prepare chart data
+                const years = [...new Set(data.map(d => d.year))].sort();
+                const coaches = [...new Set(data.map(d => d.coach))].sort();
+                
+                const ctx = document.getElementById('yearlyChart');
+                ctx.innerHTML = '<canvas id="yearlyCanvas" style="height: 300px;"></canvas>';
+                
+                const canvas = document.getElementById('yearlyCanvas');
+                const chartCtx = canvas.getContext('2d');
+                
+                const datasets = coaches.map((coach, index) => {
+                    const coachData = data.filter(d => d.coach === coach);
+                    const colors = [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384',
+                        '#36A2EB', '#FFCE56', '#4BC0C0'
+                    ];
+                    
+                    return {
+                        label: coach,
+                        data: years.map(year => {
+                            const yearData = coachData.find(d => d.year === year);
+                            return yearData ? yearData.win_pct * 100 : null;
+                        }),
+                        borderColor: colors[index % colors.length],
+                        backgroundColor: colors[index % colors.length] + '20',
+                        fill: false,
+                        tension: 0.4
+                    };
+                });
+                
+                if (standingsChart) {
+                    standingsChart.destroy();
+                }
+                
+                standingsChart = new Chart(chartCtx, {
+                    type: 'line',
+                    data: {
+                        labels: years,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Win Percentage by Year'
+                            },
+                            legend: {
+                                position: 'bottom'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Win Percentage (%)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Year'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                document.getElementById('yearlyChart').innerHTML = 
+                    `<div class="error">Error loading yearly data: ${error.message}</div>`;
+            }
+        }
+
+        async function loadWeeklyData(coach = 'all', year = 'all') {
+            try {
+                const response = await fetch(`/api/weekly-performance?coach=${coach}&year=${year}`);
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    document.getElementById('weeklyChart').innerHTML = 
+                        '<div class="loading">No data available for selected filters</div>';
+                    return;
+                }
+                
+                const ctx = document.getElementById('weeklyChart');
+                ctx.innerHTML = '<canvas id="weeklyCanvas" style="height: 300px;"></canvas>';
+                
+                const canvas = document.getElementById('weeklyCanvas');
+                const chartCtx = canvas.getContext('2d');
+                
+                // Prepare weekly data
+                let chartData, chartLabels;
+                
+                if (coach !== 'all') {
+                    // Show individual coach's weekly performance
+                    chartLabels = data.map(d => `${d.year} W${d.week}`);
+                    chartData = [{
+                        label: `${coach} Points`,
+                        data: data.map(d => d.points),
+                        borderColor: '#667eea',
+                        backgroundColor: '#667eea20',
+                        fill: true,
+                        tension: 0.4
+                    }];
+                } else {
+                    // Show average weekly scores by year
+                    const yearlyAvgs = {};
+                    data.forEach(d => {
+                        if (!yearlyAvgs[d.year]) {
+                            yearlyAvgs[d.year] = { total: 0, count: 0 };
+                        }
+                        yearlyAvgs[d.year].total += d.points;
+                        yearlyAvgs[d.year].count += 1;
+                    });
+                    
+                    chartLabels = Object.keys(yearlyAvgs).sort();
+                    chartData = [{
+                        label: 'Average Points Per Week',
+                        data: chartLabels.map(year => 
+                            (yearlyAvgs[year].total / yearlyAvgs[year].count).toFixed(2)
+                        ),
+                        borderColor: '#764ba2',
+                        backgroundColor: '#764ba220',
+                        fill: true,
+                        tension: 0.4
+                    }];
+                }
+                
+                if (weeklyChart) {
+                    weeklyChart.destroy();
+                }
+                
+                weeklyChart = new Chart(chartCtx, {
+                    type: 'line',
+                    data: {
+                        labels: chartLabels,
+                        datasets: chartData
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: coach !== 'all' ? `${coach} Weekly Performance` : 'League Average Weekly Performance'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Points'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                document.getElementById('weeklyChart').innerHTML = 
+                    `<div class="error">Error loading weekly data: ${error.message}</div>`;
+            }
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileUpload');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showMessage('Please select a file to upload', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('excelFile', file);
+            
+            try {
+                showMessage('Uploading file...', 'info');
+                
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('File uploaded successfully! Refreshing dashboard...', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    showMessage('Upload failed: ' + result.error, 'error');
+                }
+                
+            } catch (error) {
+                showMessage('Upload failed: ' + error.message, 'error');
+            }
+        }
+
+        function showMessage(message, type = 'info') {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            
+            if (type === 'success' || type === 'info') {
+                setTimeout(() => {
+                    messagesDiv.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('yearSelect').addEventListener('change', refreshDashboard);
+        document.getElementById('coachSelect').addEventListener('change', refreshDashboard);
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', loadInitialData);
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 const express = require('express');
-const { Database } = require('duckdb');
+const sqlite3 = require('sqlite3').verbose();
 const multer = require('multer');
 const XLSX = require('xlsx');
 const path = require('path');
@@ -16,11 +16,11 @@ app.use(express.urlencoded({ extended: true }));
 // Configure multer for file uploads
 const upload = multer({ dest: 'uploads/' });
 
-// Initialize DuckDB
+// Initialize SQLite
 let db;
 const initializeDatabase = () => {
   return new Promise((resolve, reject) => {
-    db = new Database(':memory:', (err) => {
+    db = new sqlite3.Database(':memory:', (err) => {
       if (err) {
         reject(err);
         return;
@@ -31,15 +31,15 @@ const initializeDatabase = () => {
         CREATE TABLE IF NOT EXISTS weekly_results (
           year INTEGER,
           week INTEGER,
-          team VARCHAR,
-          opponent VARCHAR,
-          points DECIMAL(10,2),
-          opp_points DECIMAL(10,2),
-          result VARCHAR(1),
-          season_type VARCHAR,
-          coach VARCHAR,
-          opp_coach VARCHAR,
-          pair VARCHAR
+          team TEXT,
+          opponent TEXT,
+          points REAL,
+          opp_points REAL,
+          result TEXT,
+          season_type TEXT,
+          coach TEXT,
+          opp_coach TEXT,
+          pair TEXT
         )
       `, (err) => {
         if (err) {
@@ -49,15 +49,113 @@ const initializeDatabase = () => {
         
         db.run(`
           CREATE TABLE IF NOT EXISTS coach_lookup (
-            roster_name VARCHAR,
-            canonical_coach VARCHAR
+            roster_name TEXT,
+            canonical_coach TEXT
           )
         `, (err) => {
           if (err) reject(err);
-          else resolve();
+          else {
+            console.log('Database tables created successfully');
+            // Load initial data if Excel file exists
+            loadInitialDataFromFile()
+              .then(() => resolve())
+              .catch(err => {
+                console.log('No initial data file found or error loading:', err.message);
+                resolve(); // Continue anyway
+              });
+          }
         });
       });
     });
+  });
+};
+
+// Load initial data from Excel file
+const loadInitialDataFromFile = () => {
+  return new Promise((resolve, reject) => {
+    const excelPath = path.join(__dirname, 'fantasy_results_2019_2024_v26.xlsx');
+    
+    if (!fs.existsSync(excelPath)) {
+      reject(new Error('Excel file not found'));
+      return;
+    }
+    
+    try {
+      console.log('Loading initial data from Excel file...');
+      const workbook = XLSX.readFile(excelPath);
+      
+      // Process weekly_results sheet
+      if (workbook.SheetNames.includes('weekly_results')) {
+        const sheet = workbook.Sheets['weekly_results'];
+        const data = XLSX.utils.sheet_to_json(sheet);
+        
+        console.log(`Processing ${data.length} weekly results...`);
+        
+        const stmt = db.prepare(`
+          INSERT INTO weekly_results 
+          (year, week, team, opponent, points, opp_points, result, season_type, coach, opp_coach, pair)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        data.forEach(row => {
+          stmt.run([
+            row.Year || row.year,
+            row.Week || row.week,
+            row.Team || row.team,
+            row.Opponent || row.opponent,
+            row.Points || row.points,
+            row.Opp_Points || row.opp_points,
+            row.Result || row.result,
+            row.Season_Type || row.season_type,
+            row.Coach || row.coach,
+            row.Opp_Coach || row.opp_coach,
+            row.Pair || row.pair
+          ]);
+        });
+        
+        stmt.finalize((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          console.log('Weekly results loaded successfully');
+        });
+      }
+      
+      // Process coach_lookup sheet
+      if (workbook.SheetNames.includes('coach_lookup')) {
+        const sheet = workbook.Sheets['coach_lookup'];
+        const data = XLSX.utils.sheet_to_json(sheet);
+        
+        console.log(`Processing ${data.length} coach mappings...`);
+        
+        const stmt = db.prepare(`
+          INSERT INTO coach_lookup (roster_name, canonical_coach)
+          VALUES (?, ?)
+        `);
+        
+        data.forEach(row => {
+          stmt.run([
+            row.Roster_Name || row.roster_name,
+            row.Canonical_Coach || row.canonical_coach
+          ]);
+        });
+        
+        stmt.finalize((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          console.log('Coach lookup loaded successfully');
+          resolve();
+        });
+      } else {
+        resolve();
+      }
+      
+    } catch (error) {
+      reject(error);
+    }
   });
 };
 
@@ -76,7 +174,7 @@ app.get('/api/standings', (req, res) => {
       ROUND(SUM(opp_points), 2) as points_against,
       ROUND(AVG(points), 2) as avg_points_for,
       ROUND(AVG(opp_points), 2) as avg_points_against,
-      ROUND(SUM(CASE WHEN result = 'W' THEN 1 ELSE 0 END) * 1.0 / COUNT(*), 3) as win_pct
+      ROUND(CAST(SUM(CASE WHEN result = 'W' THEN 1 ELSE 0 END) AS REAL) / COUNT(*), 3) as win_pct
     FROM weekly_results 
     WHERE season_type = 'Regular'
   `;
@@ -106,7 +204,7 @@ app.get('/api/head-to-head', (req, res) => {
       SUM(CASE WHEN result = 'L' THEN 1 ELSE 0 END) as losses,
       ROUND(SUM(points), 2) as points_for,
       ROUND(SUM(opp_points), 2) as points_against,
-      ROUND(SUM(CASE WHEN result = 'W' THEN 1 ELSE 0 END) * 1.0 / COUNT(*), 3) as win_pct
+      ROUND(CAST(SUM(CASE WHEN result = 'W' THEN 1 ELSE 0 END) AS REAL) / COUNT(*), 3) as win_pct
     FROM weekly_results 
     WHERE season_type = 'Regular'
     GROUP BY coach, opp_coach 
@@ -139,8 +237,8 @@ app.get('/api/weekly-performance', (req, res) => {
     WHERE season_type = 'Regular'
   `;
   
-  if (coach) {
-    query += ` AND coach = '${coach}'`;
+  if (coach && coach !== 'all') {
+    query += ` AND coach = ?`;
   }
   
   if (year !== 'all') {
@@ -149,7 +247,12 @@ app.get('/api/weekly-performance', (req, res) => {
   
   query += ` ORDER BY year, week`;
   
-  db.all(query, (err, rows) => {
+  const params = [];
+  if (coach && coach !== 'all') {
+    params.push(coach);
+  }
+  
+  db.all(query, params, (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -169,7 +272,7 @@ app.get('/api/yearly-summary', (req, res) => {
       ROUND(SUM(points), 2) as points_for,
       ROUND(SUM(opp_points), 2) as points_against,
       ROUND(AVG(points), 2) as avg_points,
-      ROUND(SUM(CASE WHEN result = 'W' THEN 1 ELSE 0 END) * 1.0 / COUNT(*), 3) as win_pct
+      ROUND(CAST(SUM(CASE WHEN result = 'W' THEN 1 ELSE 0 END) AS REAL) / COUNT(*), 3) as win_pct
     FROM weekly_results 
     WHERE season_type = 'Regular'
     GROUP BY year, coach 
@@ -218,19 +321,16 @@ app.post('/api/upload', upload.single('excelFile'), (req, res) => {
   try {
     const workbook = XLSX.readFile(req.file.path);
     
-    // Process weekly_results sheet
-    if (workbook.SheetNames.includes('weekly_results')) {
-      const sheet = workbook.Sheets['weekly_results'];
-      const data = XLSX.utils.sheet_to_json(sheet);
+    // Clear existing data and reload
+    db.serialize(() => {
+      db.run('DELETE FROM weekly_results');
+      db.run('DELETE FROM coach_lookup');
       
-      // Clear existing data
-      db.run('DELETE FROM weekly_results', (err) => {
-        if (err) {
-          console.error('Error clearing weekly_results:', err);
-          return res.status(500).json({ error: 'Database error' });
-        }
+      // Process weekly_results sheet
+      if (workbook.SheetNames.includes('weekly_results')) {
+        const sheet = workbook.Sheets['weekly_results'];
+        const data = XLSX.utils.sheet_to_json(sheet);
         
-        // Insert new data
         const stmt = db.prepare(`
           INSERT INTO weekly_results 
           (year, week, team, opponent, points, opp_points, result, season_type, coach, opp_coach, pair)
@@ -254,19 +354,12 @@ app.post('/api/upload', upload.single('excelFile'), (req, res) => {
         });
         
         stmt.finalize();
-      });
-    }
-    
-    // Process coach_lookup sheet
-    if (workbook.SheetNames.includes('coach_lookup')) {
-      const sheet = workbook.Sheets['coach_lookup'];
-      const data = XLSX.utils.sheet_to_json(sheet);
+      }
       
-      db.run('DELETE FROM coach_lookup', (err) => {
-        if (err) {
-          console.error('Error clearing coach_lookup:', err);
-          return;
-        }
+      // Process coach_lookup sheet
+      if (workbook.SheetNames.includes('coach_lookup')) {
+        const sheet = workbook.Sheets['coach_lookup'];
+        const data = XLSX.utils.sheet_to_json(sheet);
         
         const stmt = db.prepare(`
           INSERT INTO coach_lookup (roster_name, canonical_coach)
@@ -281,8 +374,8 @@ app.post('/api/upload', upload.single('excelFile'), (req, res) => {
         });
         
         stmt.finalize();
-      });
-    }
+      }
+    });
     
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
@@ -292,6 +385,11 @@ app.post('/api/upload', upload.single('excelFile'), (req, res) => {
     console.error('Error processing file:', error);
     res.status(500).json({ error: 'Error processing file' });
   }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 // Serve the dashboard
@@ -305,6 +403,7 @@ initializeDatabase()
     console.log('Database initialized successfully');
     app.listen(port, () => {
       console.log(`Fantasy Football Dashboard running on port ${port}`);
+      console.log(`Visit: http://localhost:${port}`);
     });
   })
   .catch(err => {

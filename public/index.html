@@ -220,12 +220,7 @@
                 </select>
             </div>
             
-            <div class="control-group">
-                <label for="fileUpload">Upload New Data:</label>
-                <input type="file" id="fileUpload" accept=".xlsx,.xls" />
-            </div>
-            
-            <button onclick="uploadFile()">Upload Data</button>
+
             <button onclick="refreshDashboard()">Refresh</button>
         </div>
 
@@ -569,40 +564,8 @@
         }
 
         async function uploadFile() {
-            const fileInput = document.getElementById('fileUpload');
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                showMessage('Please select a file to upload', 'error');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('excelFile', file);
-            
-            try {
-                showMessage('Uploading file...', 'info');
-                
-                const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showMessage('File uploaded successfully! Refreshing dashboard...', 'success');
-                    setTimeout(() => {
-                        refreshDashboard();
-                        showMessage('', 'info');
-                    }, 2000);
-                } else {
-                    showMessage('Upload failed: ' + result.error, 'error');
-                }
-                
-            } catch (error) {
-                showMessage('Upload failed: ' + error.message, 'error');
-            }
+            // Upload functionality removed - data managed through GitHub
+            showMessage('Data updates are managed through GitHub repository', 'info');
         }
 
         function showMessage(message, type = 'info') {

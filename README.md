@@ -1,6 +1,6 @@
 # Fantasy Football Dashboard
 
-A comprehensive dashboard for tracking fantasy football league performance from 2019-2024, built with Express.js, DuckDB, and Chart.js.
+A comprehensive dashboard for tracking fantasy football league performance from 2019-2024, built with Express.js, SQLite, and Chart.js.
 
 ## Features
 
@@ -8,47 +8,14 @@ A comprehensive dashboard for tracking fantasy football league performance from 
 - **Yearly Performance**: Visualize performance trends over multiple seasons
 - **Head-to-Head Records**: See matchup history between all coaches
 - **Weekly Performance**: Analyze week-by-week scoring patterns
-- **Data Upload**: Upload new Excel files to update the dashboard
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## Tech Stack
 
 - **Backend**: Node.js with Express
-- **Database**: DuckDB (in-memory for fast queries)
+- **Database**: SQLite (in-memory for fast queries)
 - **Frontend**: Vanilla JavaScript with Chart.js
 - **File Processing**: SheetJS (XLSX) for Excel file handling
-- **Hosting**: Render.com
-
-## Quick Deploy to Render
-
-### Option 1: One-Click Deploy
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
-
-### Option 2: Manual Deploy
-
-1. **Fork or Download** this repository
-
-2. **Create a Render account** at [render.com](https://render.com)
-
-3. **Connect your GitHub repo** to Render:
-   - Click "New +" → "Web Service"
-   - Connect your GitHub account
-   - Select your repository
-
-4. **Configure the service**:
-   - **Name**: `fantasy-football-dashboard`
-   - **Environment**: `Node`
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-   - **Plan**: Free (or paid for better performance)
-
-5. **Add Environment Variables** (optional):
-   ```
-   NODE_ENV=production
-   PORT=3000
-   ```
-
-6. **Deploy**: Click "Create Web Service"
 
 ## Local Development
 
@@ -71,7 +38,7 @@ A comprehensive dashboard for tracking fantasy football league performance from 
 
 3. **Add your data file**:
    - Place your `fantasy_results_2019_2024_v26.xlsx` file in the root directory
-   - Or use the upload feature in the dashboard
+   - The application will automatically load this data on startup
 
 4. **Start the application**:
    ```bash
@@ -87,12 +54,8 @@ A comprehensive dashboard for tracking fantasy football league performance from 
 fantasy-football-dashboard/
 ├── app.js                 # Main server file
 ├── package.json          # Dependencies and scripts
-├── render.yaml           # Render deployment config
-├── Dockerfile            # Docker configuration
-├── load_data.js          # Initial data loading script
 ├── public/
 │   └── index.html        # Frontend dashboard
-├── uploads/              # Temporary upload directory
 └── README.md             # This file
 ```
 
@@ -125,14 +88,14 @@ The dashboard expects an Excel file with these sheets:
 - `GET /api/yearly-summary` - Get year-by-year performance summary
 - `GET /api/coaches` - Get list of all coaches
 - `GET /api/years` - Get list of available years
-- `POST /api/upload` - Upload new Excel data file
+- `GET /health` - Health check endpoint
 
 ## Customization
 
 ### Adding New Features
 
 1. **New API Endpoint**: Add routes in `app.js`
-2. **New Chart**: Add Chart.js configuration in `index.html`
+2. **New Chart**: Add Chart.js configuration in `public/index.html`
 3. **New Table**: Add data processing in the frontend JavaScript
 
 ### Styling
@@ -140,47 +103,37 @@ The dashboard expects an Excel file with these sheets:
 - The dashboard uses a modern gradient design with responsive layout
 
 ### Database Queries
-- DuckDB SQL queries are in `app.js`
+- SQLite queries are in `app.js`
 - Modify existing queries or add new ones for additional insights
 
-## Deployment Tips
+## Performance Notes
 
-### Render.com Specific
-- The free tier has limitations (512MB RAM, sleeps after 15min inactivity)
-- For production use, consider upgrading to a paid plan
-- Environment variables can be set in the Render dashboard
-
-### Performance Optimization
-- DuckDB runs in-memory for fast queries
-- Consider persistent storage for larger datasets
-- Add caching for frequently requested data
-
-### Monitoring
-- Render provides basic monitoring and logs
-- Add custom health checks as needed
-- Monitor memory usage with large datasets
+- SQLite runs in-memory for fast queries
+- Database is automatically recreated on each application start
+- All data is loaded from the Excel file during initialization
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **DuckDB installation issues**:
+1. **SQLite installation issues**:
    ```bash
-   npm rebuild duckdb
+   npm rebuild sqlite3
    ```
 
-2. **File upload not working**:
-   - Check file permissions in uploads directory
-   - Verify Excel file format matches expected structure
+2. **Data not loading**:
+   - Ensure `fantasy_results_2019_2024_v26.xlsx` is in the root directory
+   - Check that Excel file format matches expected structure
+   - Review console logs for data loading errors
 
 3. **Charts not displaying**:
    - Check browser console for JavaScript errors
    - Ensure Chart.js CDN is accessible
 
-4. **Deployment fails**:
-   - Check Node.js version compatibility
-   - Verify all dependencies in package.json
-   - Review Render build logs
+4. **Application won't start**:
+   - Check Node.js version compatibility (requires 16+)
+   - Verify all dependencies in package.json are installed
+   - Review application logs for specific errors
 
 ## Contributing
 
